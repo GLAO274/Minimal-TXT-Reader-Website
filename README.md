@@ -1,6 +1,6 @@
 # Minimal-TXT-Reader-Website
 
-[Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)[te](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)
+[Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)
 
 极简的TXT文档/电子书在线阅读网站。
 
