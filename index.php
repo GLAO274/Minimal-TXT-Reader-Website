@@ -148,7 +148,7 @@ if ($action === 'select_book') {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="author" content="EAHI">
         <title>书架</title>
-        <link rel="stylesheet" type="text/css" href="style.css?v=1">
+        <link rel="stylesheet" type="text/css" href="style.css?v=28">
     </head>
     <body class="<?php echo $mode_class; ?>">
         <div class="container">
@@ -162,7 +162,7 @@ if ($action === 'select_book') {
                 <?php endforeach; ?>
             </ul>
         </div>
-        <script src="script.js?v=1"></script>
+        <script src="script.js?v=13"></script>
     </body>
     </html>
     <?php
@@ -183,7 +183,7 @@ if ($action === 'select_book') {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="author" content="EAHI">
         <title><?php echo htmlspecialchars($book); ?> - 章节列表</title>
-        <link rel="stylesheet" type="text/css" href="style.css?v=1">
+        <link rel="stylesheet" type="text/css" href="style.css?v=28">
     </head>
     <body class="<?php echo $mode_class; ?>">
         <div class="container">
@@ -214,7 +214,7 @@ if ($action === 'select_book') {
             </ul>
             <a id="<?php echo $mode_class; ?>" href="?action=select_book">返回书本选择</a>
         </div>
-        <script src="script.js?v=1"></script>
+        <script src="script.js?v=13"></script>
     </body>
     </html>
     <?php
@@ -265,7 +265,7 @@ if ($action === 'select_book') {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta name="author" content="EAHI">
             <title><?php echo htmlspecialchars(basename($chapter, '.' . $extension)); ?></title>
-            <link rel="stylesheet" type="text/css" href="style.css?v=1">
+            <link rel="stylesheet" type="text/css" href="style.css?v=28">
         </head>
         <body class="<?php echo $mode_class; ?>">
             <div class="container">
@@ -293,7 +293,7 @@ if ($action === 'select_book') {
                     <a id="<?php echo $mode_class; ?>" href="?action=select_book">返回书本选择</a>
                 </div>
             </div>
-            <script src="script.js?v=1"></script>
+            <script src="script.js?v=13"></script>
         </body>
         </html>
         <?php
@@ -331,35 +331,56 @@ if ($action === 'select_book') {
             '}', '》', '>', '】', ']', '）', ')', // 中英文括号和其他标点
             '…', '---', '--' // 省略号和破折号
         ];
-    
+        
         // 分页缓存文件路径
         $pagination_cache = "$books_dir/$book/{$chapter}_pagination.json";
         
-        // 如果没有现有的分页缓存，动态计算分页
-        if (!file_exists($pagination_cache)) {
+        // 读取缓存文件
+        $regenerate_cache = false;
+        if (file_exists($pagination_cache)) {
+            $cached_data = json_decode(file_get_contents($pagination_cache), true);
+            
+            // 检查缓存格式是否正确
+            if (!is_array($cached_data) || !isset($cached_data['page_size']) || !isset($cached_data['pagination'])) {
+                $regenerate_cache = true;
+            } else {
+                $cached_page_size = $cached_data['page_size'];
+                $pagination = $cached_data['pagination'];
+                
+                // 如果缓存的 page_size 和当前的不一致，更新缓存
+                if ($cached_page_size !== $page_size) {
+                    $regenerate_cache = true;
+                }
+            }
+        } else {
+            $regenerate_cache = true;
+        }
+        
+        // 如果需要重新生成缓存
+        if ($regenerate_cache) {
             $pagination = [];
             $current_pos = 0;
-        
+            
             while ($current_pos < $total_chars) {
                 $raw_content = mb_substr($content, $current_pos, $page_size, 'UTF-8');
-        
+    
                 // 查找最后一个标点的位置
                 $last_punctuation = false;
                 foreach ($punctuations as $punctuation) {
                     $pos = mb_strrpos($raw_content, $punctuation);
                     if ($pos !== false) {
                         $last_punctuation = $pos;
-                        break; // 找到后停止循环
+                        break;
                     }
                 }
-        
+                
                 // 确保分页点合理且有内容
                 if ($last_punctuation !== false) {
                     $current_end = $current_pos + $last_punctuation + 1;
                 } else {
                     $current_end = $current_pos + $page_size;
                 }
-        
+                
                 // 确保当前分页点有效
                 if ($current_end > $total_chars) {
                     $current_end = $total_chars;
@@ -367,31 +388,28 @@ if ($action === 'select_book') {
                 if ($current_end <= $current_pos) {
                     break;
                 }
-        
+                
                 // 检查分割内容是否为空白，空白则跳过此分页点
                 $segment = mb_substr($content, $current_pos, $current_end - $current_pos, 'UTF-8');
                 if (trim($segment) === '') {
                     $current_pos = $current_end;
-                    continue; 
+                    continue;
                 }
-        
+                
                 // 添加到分页数组
                 $pagination[] = $current_pos;
                 $current_pos = $current_end;
             }
-        
-            // 合并最后一段内容到上一页
+                
+            // **合并最后一段内容到上一页**
             if (count($pagination) > 1 && $pagination[count($pagination) - 1] < $total_chars) {
-                $pagination[count($pagination) - 1] = $total_chars; 
+                $pagination[count($pagination) - 1] = $total_chars;
             } elseif (empty($pagination) || end($pagination) < $total_chars) {
                 $pagination[] = $total_chars; // 如果没有分页点，确保总长度作为唯一的分页点
             }
         
-            // 将分页数据存储为 JSON 文件
-            file_put_contents($pagination_cache, json_encode($pagination));
-        } else {
-            // 读取缓存
-            $pagination = json_decode(file_get_contents($pagination_cache), true);
+            // 存储新的分页数据到 JSON 文件
+            file_put_contents($pagination_cache, json_encode(['page_size' => $page_size, 'pagination' => $pagination]));
         }
         
         // 计算最大页数
@@ -451,7 +469,7 @@ if ($action === 'select_book') {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta name="author" content="EAHI">
             <title><?php echo htmlspecialchars($chapter); ?></title>
-            <link rel="stylesheet" type="text/css" href="style.css?v=1">
+            <link rel="stylesheet" type="text/css" href="style.css?v=28">
             <style>
                 .content {
                     font-size: <?php echo $font_size; ?>;
@@ -525,7 +543,7 @@ if ($action === 'select_book') {
                 </div>
                 <br/>
             </div>
-            <script src="script.js?v=1"></script>
+            <script src="script.js?v=13"></script>
         </body>
         </html>
         <?php
