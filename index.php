@@ -65,40 +65,36 @@ function getSortedChapters($book_dir) {
                 ];
                 $number = 0;
                 $segment = 0;
-                $unit = 1;
-
+                
                 foreach (mb_str_split($string) as $char) {
                     if (isset($chineseToNumber[$char])) {
                         $value = $chineseToNumber[$char];
                         if ($value >= 10) {
-                            if ($value >= 10000) {
-                                $number += $segment * $value;
-                                $segment = 0;
-                            } else {
-                                $unit = $value;
+                            if ($segment == 0) {
+                                $segment = 1;
                             }
+                            $segment *= $value;
                         } else {
-                            $segment += $value * $unit;
-                            $unit = 1;
+                            $segment += $value;
                         }
                     }
                 }
                 return $number + $segment;
             };
-
+            
             // 英文数字解析
             $parseEnglishNumber = function ($string) {
                 static $mapping = [
-                    'zero' => 0, 'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5,
-                    'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10,
-                    'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14,
-                    'fifteen' => 15, 'sixteen' => 16, 'seventeen' => 17, 'eighteen' => 18,
-                    'nineteen' => 19, 'twenty' => 20, 'thirty' => 30, 'forty' => 40,
-                    'fifty' => 50, 'sixty' => 60, 'seventy' => 70, 'eighty' => 80, 'ninety' => 90,
-                    'hundred' => 100, 'thousand' => 1000, 'million' => 1000000, 'billion' => 1000000000
+                    'zero' => 0, 'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 
+                    'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10, 
+                    'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14, 'fifteen' => 15, 
+                    'sixteen' => 16, 'seventeen' => 17, 'eighteen' => 18, 'nineteen' => 19, 'twenty' => 20, 
+                    'thirty' => 30,'forty' => 40, 'fifty' => 50, 'sixty' => 60, 'seventy' => 70,
+                    'eighty' => 80, 'ninety' => 90, 'hundred' => 100, 'thousand' => 1000,
+                    'million' => 1000000, 'billion' => 1000000000
                 ];
-                $words = preg_split('/\s+|-/', strtolower($string));
                 $total = $current = 0;
+                $words = preg_split('/\s+|-/', strtolower($string));
 
                 foreach ($words as $word) {
                     if (isset($mapping[$word])) {
@@ -116,68 +112,81 @@ function getSortedChapters($book_dir) {
                 $romanToNumber = [
                     'I' => 1, 'V' => 5, 'X' => 10, 'L' => 50, 'C' => 100, 'D' => 500, 'M' => 1000
                 ];
-                $string = strtoupper($string);
-                $length = strlen($string);
                 $total = 0;
+                $length = strlen($string);
 
                 for ($i = 0; $i < $length; $i++) {
-                    $current = $romanToNumber[$string[$i]] ?? 0;
-                    $next = ($i + 1 < $length) ? ($romanToNumber[$string[$i + 1]] ?? 0) : 0;
-
-                    if ($current < $next) {
-                        $total -= $current;
+                    $value = $romanToNumber[$string[$i]] ?? 0;
+                    $nextValue = $romanToNumber[$string[$i + 1] ?? ''] ?? 0;
+                    if ($value < $nextValue) {
+                        $total -= $value;
                     } else {
-                        $total += $current;
+                        $total += $value;
                     }
                 }
-
                 return $total;
             };
 
-            // 提取数字组
-            $groups = [];
-            $remainingString = $string;
-            while (preg_match('/([零一二三四五六七八九十百千万亿]+)|(\d+)|(\b[IVXLCDM]+\b)|(\b[a-z]+\b)/iu', $remainingString, $match, PREG_OFFSET_CAPTURE)) {
-                $matchedString = $match[0][0];
-                $offset = $match[0][1];
-                // 按匹配类型解析并存入组
-                if (!empty($match[1][0])) {
-                    $groups[] = ['type' => 'chinese', 'value' => $parseChineseNumber($matchedString)];
-                } elseif (!empty($match[2][0])) {
-                    $groups[] = ['type' => 'numeric', 'value' => (int)$matchedString];
-                } elseif (!empty($match[3][0])) {
-                    $groups[] = ['type' => 'roman', 'value' => $parseRomanNumber($matchedString)];
-                } elseif (!empty($match[4][0])) {
-                    $groups[] = ['type' => 'english', 'value' => $parseEnglishNumber($matchedString)];
+            // 提取数字
+            $extractNumericAndTextSegments = function ($string) use ($parseChineseNumber, $parseEnglishNumber, $parseRomanNumber) {
+                $segments = [];
+                $numericFound = false;
+                preg_match_all('/(\d+)|([^\d]+)/u', $string, $matches);
+                foreach ($matches[0] as $match) {
+                    if (is_numeric($match)) {
+                        $segments[] = (int)$match; 
+                        $numericFound = true;
+                    } elseif (preg_match('/[零一二三四五六七八九十百千万亿]+/u', $match)) {
+                        $segments[] = $parseChineseNumber($match); 
+                        $numericFound = true;
+                    } elseif (preg_match('/\b[a-z]+\b/i', $match)) {
+                        $value = $parseEnglishNumber($match); 
+                        if ($value != 0) {
+                            $segments[] = $value;
+                            $numericFound = true;
+                        }
+                    } elseif (preg_match('/\b[IVXLCDM]+\b/i', $match)) {
+                        $segments[] = $parseRomanNumber($match); 
+                        $numericFound = true;
+                    } else {
+                        $segments[] = trim($match); 
+                    }
                 }
-                // 去除已匹配部分
-                $remainingString = substr($remainingString, $offset + strlen($matchedString));
-            }
-            // 无数字时返回特殊值
-            return $cache[$string] = $groups ?: [['type' => 'none', 'value' => $string]];
+                if (!$numericFound) {
+                    return [PHP_INT_MAX, $string]; // 没有数字，文本排序在最后
+                }
+                return $segments;
+            };
+
+            $order = $extractNumericAndTextSegments($string);
+            return $cache[$string] = $order;
         };
 
         $orderA = $extractOrder(basename($a));
         $orderB = $extractOrder(basename($b));
 
-        // 比较数字组
         $length = max(count($orderA), count($orderB));
         for ($i = 0; $i < $length; $i++) {
-            $groupA = $orderA[$i] ?? ['type' => 'none', 'value' => PHP_INT_MAX];
-            $groupB = $orderB[$i] ?? ['type' => 'none', 'value' => PHP_INT_MAX];
-            // 按类型权重排序（纯数字 > 中文 > 英文 > 罗马数字 > 无数字）
-            $typeWeight = ['numeric' => 1, 'chinese' => 2, 'english' => 3, 'roman' => 4, 'none' => 5];
-            if ($groupA['type'] !== $groupB['type']) {
-                return $typeWeight[$groupA['type']] <=> $typeWeight[$groupB['type']];
+            if (!isset($orderA[$i])) return -1; 
+            if (!isset($orderB[$i])) return 1;  
+
+            if (is_string($orderA[$i]) && is_string($orderB[$i])) {
+                $result = strcmp($orderA[$i], $orderB[$i]);
+            } else {
+                $result = $orderA[$i] <=> $orderB[$i];
             }
-            // 同类型按值排序
-            if ($groupA['value'] !== $groupB['value']) {
-                return $groupA['value'] <=> $groupB['value'];
-            }
+
+            if ($result !== 0) return $result;
         }
-        // 如果所有组完全相等，按 GBK 顺序比较
-        return strcmp(basename($a), basename($b));
+
+        // 确保没有额外文本的章节排在有额外文本的章节前面
+        if (count($orderA) == count($orderB)) {
+            return $orderA < $orderB ? -1 : 1;
+        }
+
+        return count($orderA) < count($orderB) ? -1 : 1;
     });
+
     return $chapters;
 }
 
