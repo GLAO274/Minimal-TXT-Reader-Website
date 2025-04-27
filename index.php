@@ -9,9 +9,20 @@ $font_size_medium = "18px"; // 中号字体大小
 $font_size_large = "21px"; // 大号字体大小
 
 // 获取参数
-$action = isset($_GET['action']) ? $_GET['action'] : 'select_book';
-$book = isset($_GET['book']) ? $_GET['book'] : '';
-$chapter = isset($_GET['chapter']) ? $_GET['chapter'] : '';
+function sanitize_filename($name) {
+    $illegal_chars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|', ';', '..'];
+    foreach ($illegal_chars as $char) {
+        if (strpos($name, $char) !== false) {
+            header('Location: index.php');
+            exit;
+        }
+    }
+    return trim(basename($name));
+}
+
+$action = isset($_GET['action']) ? sanitize_filename($_GET['action']) : 'select_book';
+$book = isset($_GET['book']) ? sanitize_filename($_GET['book']) : '';
+$chapter = isset($_GET['chapter']) ? sanitize_filename($_GET['chapter']) : '';
 $page = isset($_GET['page']) && intval($_GET['page']) > 0 ? intval($_GET['page']) : 1;
 
 // 处理日夜模式切换请求
@@ -47,6 +58,12 @@ function getSortedChapters($book_dir) {
     $chapters = array_filter(glob("$book_dir/*"), function ($chapter) {
         return is_file($chapter) && pathinfo($chapter, PATHINFO_EXTENSION) !== 'json';
     });
+    
+    if (empty($chapters)) {
+        // 如果没有章节，直接跳转回首页
+        header('Location: index.php');
+        exit;
+    }
 
     usort($chapters, function ($a, $b) {
         $extractOrder = function ($string) {
@@ -465,9 +482,17 @@ if ($action === 'select_book') {
             } elseif (empty($pagination) || end($pagination) < $total_chars) {
                 $pagination[] = $total_chars; // 如果没有分页点，确保总长度作为唯一的分页点
             }
-        
+            
             // 存储新的分页数据到 JSON 文件
-            file_put_contents($pagination_cache, json_encode(['page_size' => $page_size, 'pagination' => $pagination]));
+            if ($fp = fopen($pagination_cache, 'c')) { // 'c'模式
+                if (flock($fp, LOCK_EX)) { // 独占锁
+                    ftruncate($fp, 0); // 清空旧内容
+                    fwrite($fp, json_encode(['page_size' => $page_size, 'pagination' => $pagination]));
+                    fflush($fp); // 刷新输出缓冲到文件
+                    flock($fp, LOCK_UN); // 释放锁
+                }
+                fclose($fp);
+            }
         }
         
         // 计算最大页数
