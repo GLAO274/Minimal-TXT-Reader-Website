@@ -7,6 +7,8 @@ ini_set('session.use_strict_mode', 1);
 ini_set('session.cookie_samesite', 'Strict');
 ini_set('session.use_only_cookies', 1);
 
+session_name('PHPSESSID_' . md5($library_id));
+
 session_start();
 
 if (!isset($_SESSION['initiated'])) {
@@ -521,8 +523,8 @@ function getSortedChapters($book_dir) {
             return $cache[$string] = $extracted;
         };
         
-        $orderA = $extractOrder(basename($a));
-        $orderB = $extractOrder(basename($b));
+        $orderA = $extractOrder(pathinfo(basename($a), PATHINFO_FILENAME));
+        $orderB = $extractOrder(pathinfo(basename($b), PATHINFO_FILENAME));
         
         // 确定优先级（三级）
         if ($aIsPrologue) {
