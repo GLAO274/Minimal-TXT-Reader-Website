@@ -1,6 +1,5 @@
 # Minimal-TXT-Reader-Website
-极简的TXT文档/电子书在线阅读网站。
-从旧硬盘里翻出了一些还没看的旧电子书，所以写了这个网站让我可以随时随地看这些书。
+极简的TXT文档/电子书在线阅读网站。无数据库，纯文件系统管理，支持密码保护的私密书柜。
 
 [Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)（Demo 用户密码：pass1234）
 
