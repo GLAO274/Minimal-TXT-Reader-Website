@@ -7,6 +7,8 @@ ini_set('session.use_strict_mode', 1);
 ini_set('session.cookie_samesite', 'Strict');
 ini_set('session.use_only_cookies', 1);
 
+session_name('PHPSESSID_' . md5($library_id));
+
 session_start();
 
 function check_secret_authentication() {
