@@ -80,10 +80,10 @@ Minimal-TXT-Reader-Website/
 ### 参数配置
 在 `config.php` 文件中按需修改参数：
 ```php
+$library_id = "library_id";              // 图书馆ID，不同图书馆请设置不同的ID（例如: "my_collection", "Library_A", "Library_B" 等）
 $books_dir = "books";                    // 存放书本的主文件夹名称
 $secret_dir = "secret";                  // 秘密书柜的文件夹名称
 $initial_password_file = "secret_initial.json";  // 初始密码文件名
-$library_id = "library_id";              // 图书馆ID，不同图书馆请设置不同的ID
 $page_size = 2000;                       // 每页显示的字符数
 $font_size_small = "15px";               // 小号字体大小
 $font_size_medium = "18px";              // 中号字体大小
