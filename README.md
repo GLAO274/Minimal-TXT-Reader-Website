@@ -2,7 +2,7 @@
 极简的TXT文档/电子书在线阅读网站。
 从旧硬盘里翻出了一些还没看的旧电子书，所以写了这个网站让我可以随时随地看这些书。
 
-[Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)（Demo 用户密码：pass123）
+[Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)（Demo 用户密码：pass1234）
 
 ## 功能特性
 
