@@ -31,6 +31,13 @@ Minimal-TXT-Reader-Website/
       |-- 私密书本2/
           |-- 章节.txt
 ```
+### 自动生成的文件
+以下文件会在系统运行过程中自动生成，无需手动创建：
+- `secret_config.json` - 密码配置文件（首次设置密码后生成）
+- `*_pagination.json` - 章节分页缓存文件（如 `Chapter_01_pagination.json`）
+- `secret/.htaccess` - 秘密书柜安全配置（首次访问秘密书柜时生成）
+- `rate_limit.json` - 速率限制记录文件（密码验证时生成）
+- `rate_limit.lock` - 速率限制锁文件（密码验证时生成）
 
 ### 全站功能
 - 支持白天/夜间模式切换
