@@ -34,7 +34,12 @@ function verify_csrf_token($token) {
 // ==================== 秘密书架函数 ====================
 
 function check_secret_authentication() {
-    global $secret_session_lifetime;
+    global $secret_session_lifetime, $library_id;
+    
+    // 验证库 ID
+    if (!isset($_SESSION['authenticated_library_id']) || $_SESSION['authenticated_library_id'] !== $library_id) {
+        return false;
+    }
     
     if (!isset($_SESSION['secret_authenticated']) || $_SESSION['secret_authenticated'] !== true) {
         return false;
@@ -49,6 +54,7 @@ function check_secret_authentication() {
         unset($_SESSION['secret_authenticated']);
         unset($_SESSION['secret_login_time']);
         unset($_SESSION['secret_last_activity']);
+        unset($_SESSION['authenticated_library_id']);
         return false;
     }
     
@@ -102,6 +108,7 @@ if (isset($_GET['secret_action']) && $_GET['secret_action'] === 'logout') {
         unset($_SESSION['secret_login_time']);
         unset($_SESSION['secret_last_activity']);
         unset($_SESSION['secret_must_change_password']);
+        unset($_SESSION['authenticated_library_id']);
         refresh_session_id();
     }
     header('Location: index.php');
