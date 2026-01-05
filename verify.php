@@ -161,7 +161,12 @@ function validate_password_strength($password) {
 }
 
 function check_secret_authentication() {
-    global $secret_session_lifetime;
+    global $secret_session_lifetime, $library_id;
+    
+    // 验证库 ID
+    if (!isset($_SESSION['authenticated_library_id']) || $_SESSION['authenticated_library_id'] !== $library_id) {
+        return false;
+    }
     
     if (!isset($_SESSION['secret_authenticated']) || $_SESSION['secret_authenticated'] !== true) {
         return false;
@@ -177,6 +182,7 @@ function check_secret_authentication() {
         unset($_SESSION['secret_login_time']);
         unset($_SESSION['secret_last_activity']);
         unset($_SESSION['secret_login_type']);
+        unset($_SESSION['authenticated_library_id']);
         return false;
     }
     
@@ -245,6 +251,7 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
                 $_SESSION['secret_last_activity'] = time();
                 $_SESSION['secret_must_setup_passwords'] = true;
                 $_SESSION['secret_login_type'] = 'master';
+                $_SESSION['authenticated_library_id'] = $library_id;
                 
                 reset_failed_attempts($ip);
                 
@@ -268,6 +275,7 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
             $_SESSION['secret_login_time'] = time();
             $_SESSION['secret_last_activity'] = time();
             $_SESSION['secret_login_type'] = 'master';
+            $_SESSION['authenticated_library_id'] = $library_id;
             
             reset_failed_attempts($ip);
             
@@ -281,6 +289,7 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
             $_SESSION['secret_login_time'] = time();
             $_SESSION['secret_last_activity'] = time();
             $_SESSION['secret_login_type'] = 'user';
+            $_SESSION['authenticated_library_id'] = $library_id;
             
             reset_failed_attempts($ip);
             
