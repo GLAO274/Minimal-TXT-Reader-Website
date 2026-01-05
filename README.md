@@ -61,6 +61,7 @@ Minimal-TXT-Reader-Website/
 - **双密码系统**：主密码由站长持有用于管理和修改所有密码，用户密码可分享给他人仅用于登录访问
 - **首次设置**：通过初始密码配置文件设置初始密码，首次访问时设置主密码和用户密码
 - **访问方式**：右下角连续点击3次或按快捷键 `Alt+Ctrl+.`（Mac 为 `Alt+Cmd+.`）打开密码输入框
+- **多图书馆支持**：通过 `library_id` 配置，支持在同一域名下部署多个独立的图书馆，每个图书馆拥有独立的密码和会话管理
 
 ## 安装与配置
 
@@ -82,12 +83,18 @@ Minimal-TXT-Reader-Website/
 $books_dir = "books";                    // 存放书本的主文件夹名称
 $secret_dir = "secret";                  // 秘密书柜的文件夹名称
 $initial_password_file = "secret_initial.json";  // 初始密码文件名
+$library_id = "library_id";              // 图书馆ID，不同图书馆请设置不同的ID
 $page_size = 2000;                       // 每页显示的字符数
 $font_size_small = "15px";               // 小号字体大小
 $font_size_medium = "18px";              // 中号字体大小
 $font_size_large = "21px";               // 大号字体大小
 $secret_session_lifetime = 12 * 3600;    // 秘密书柜会话有效期（秒）
 ```
+
+**多图书馆部署说明**：
+- 如果在同一域名下部署多个图书馆（如 `example.com/libraryA/` 和 `example.com/libraryB/`），请为每个图书馆设置不同的 `$library_id`
+- 例如：libraryA 设置为 `$library_id = "libraryA"`，libraryB 设置为 `$library_id = "libraryB"`
+- 这样可以确保不同图书馆的会话完全隔离
 
 ### 秘密书柜初始化
 创建初始密码配置文件（默认为 `secret_initial.json`，与 `index.php` 同级）：
@@ -114,6 +121,7 @@ $secret_session_lifetime = 12 * 3600;    // 秘密书柜会话有效期（秒）
 ## 安全特性
 - CSRF 保护：所有表单提交均包含 token 验证
 - 会话安全：HttpOnly、SameSite、Strict Mode 等安全属性配置
+- 会话隔离：通过 library_id 实现多图书馆会话隔离，防止跨库访问
 - 文件路径验证：严格的路径遍历保护
 - 密码加密存储：使用安全的哈希算法存储密码
 - .htaccess 保护：通过 Apache 配置限制对敏感目录和文件的直接访问
@@ -123,9 +131,10 @@ $secret_session_lifetime = 12 * 3600;    // 秘密书柜会话有效期（秒）
 - 图片文件需与对应章节放在同一目录
 
 ## Version
-2.0.0
+2.0.1
 
 ## Changelog
+- **2.0.1**: 修复会话安全漏洞，新增 library_id 配置实现多图书馆会话隔离
 - **2.0.0**: 新增秘密书柜功能（双密码系统），增强安全性（CSRF保护、会话安全强化、文件路径验证），优化章节排序算法和分页缓存机制
 - **1.0.4**: 新增 sanitize_filename() 检测非法字符并跳转回首页，getSortedChapters() 检查章节为空时跳转回首页，分页缓存写入增加 flock() 文件锁
 - **1.0.3**: 更新章节排序函数
