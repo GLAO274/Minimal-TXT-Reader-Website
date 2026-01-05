@@ -1,5 +1,6 @@
 <?php
 // 设置参数
+$library_id = "library_id"; // 图书馆ID，不同图书馆请设置不同的ID（例如: "my_collection", "Library_A", "Library_B" 等）
 $books_dir = "books"; // 存放书本的主文件夹名称
 $secret_dir = "secret"; // 秘密书架的主文件夹名称
 $initial_password_file = "secret_initial.json"; // 初始密码文件
