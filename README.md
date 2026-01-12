@@ -1,7 +1,7 @@
 # Minimal-TXT-Reader-Website
 极简的TXT文档/电子书在线阅读网站。无数据库，纯文件系统管理，支持密码保护的私密书柜。
 
-**<a href="https://glao.xyz/demo/Minimal-TXT-Reader-Website/" target="_blank">Demo 链接</a>**（Demo 用户密码：pass1234）
+**[Demo 链接](https://glao.xyz/demo/Minimal-TXT-Reader-Website/)**（Demo 用户密码：pass1234）
 
 **秘密书柜访问方式**：右下角连续点击3次或按快捷键 `Alt+Ctrl+.`（Mac 为 `Alt+Cmd+.`）打开密码输入框
 
