@@ -30,7 +30,14 @@ function get_client_ip() {
     } else {
         $ip = $_SERVER['REMOTE_ADDR'];
     }
-    return trim($ip);
+    $ip = trim($ip);
+    
+    // 验证 IP
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6)) {
+        return $_SERVER['REMOTE_ADDR'];
+    }
+    
+    return $ip;
 }
 
 function check_rate_limit($ip) {
@@ -38,60 +45,62 @@ function check_rate_limit($ip) {
     $data_file = 'rate_limit.json';
     
     $fp = fopen($lock_file, 'c');
-    if (!flock($fp, LOCK_EX)) {
-        fclose($fp);
-        return ['allowed' => false, 'reason' => 'system_busy'];
-    }
     
-    $data = file_exists($data_file) 
-        ? json_decode(file_get_contents($data_file), true) 
-        : [];
-    
-    // 清理过期记录
-    $now = time();
-    $cleanup_threshold = 7 * 24 * 3600; // 7天
-    $cleaned = false;
-    
-    if (is_array($data)) {
-        foreach ($data as $recorded_ip => $ip_data) {
-            if (isset($ip_data['last_attempt_time']) && 
-                ($now - $ip_data['last_attempt_time'] > $cleanup_threshold) &&
-                (!isset($ip_data['locked_until']) || $ip_data['locked_until'] <= $now)) {
-                unset($data[$recorded_ip]);
-                $cleaned = true;
+    try {
+        if (!flock($fp, LOCK_EX)) {
+            return ['allowed' => false, 'reason' => 'system_busy'];
+        }
+        
+        $data = file_exists($data_file) 
+            ? json_decode(file_get_contents($data_file), true) 
+            : [];
+        
+        // 清理过期记录
+        $now = time();
+        $cleanup_threshold = 7 * 24 * 3600; // 7天
+        $cleaned = false;
+        
+        if (is_array($data)) {
+            foreach ($data as $recorded_ip => $ip_data) {
+                if (isset($ip_data['last_attempt_time']) && 
+                    ($now - $ip_data['last_attempt_time'] > $cleanup_threshold) &&
+                    (!isset($ip_data['locked_until']) || $ip_data['locked_until'] <= $now)) {
+                    unset($data[$recorded_ip]);
+                    $cleaned = true;
+                }
+            }
+            
+            if ($cleaned) {
+                file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
             }
         }
         
-        if ($cleaned) {
-            file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
+        $ip_data = $data[$ip] ?? [
+            'failed_attempts' => 0,
+            'last_attempt_time' => 0,
+            'locked_until' => 0
+        ];
+        
+        if (isset($ip_data['locked_until']) && $ip_data['locked_until'] > $now) {
+            $remaining = $ip_data['locked_until'] - $now;
+            return [
+                'allowed' => false, 
+                'reason' => 'locked',
+                'remaining_seconds' => $remaining
+            ];
         }
-    }
-    
-    $ip_data = $data[$ip] ?? [
-        'failed_attempts' => 0,
-        'last_attempt_time' => 0,
-        'locked_until' => 0
-    ];
-    
-    if (isset($ip_data['locked_until']) && $ip_data['locked_until'] > $now) {
-        $remaining = $ip_data['locked_until'] - $now;
+        
+        if (isset($ip_data['locked_until']) && $ip_data['locked_until'] > 0 && $ip_data['locked_until'] <= $now) {
+            $ip_data['failed_attempts'] = 0;
+            $ip_data['locked_until'] = 0;
+        }
+        
+        return ['allowed' => true, 'ip_data' => $ip_data];
+        
+    } finally {
         flock($fp, LOCK_UN);
         fclose($fp);
-        return [
-            'allowed' => false, 
-            'reason' => 'locked',
-            'remaining_seconds' => $remaining
-        ];
     }
-    
-    if (isset($ip_data['locked_until']) && $ip_data['locked_until'] > 0 && $ip_data['locked_until'] <= $now) {
-        $ip_data['failed_attempts'] = 0;
-        $ip_data['locked_until'] = 0;
-    }
-    
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    return ['allowed' => true, 'ip_data' => $ip_data];
 }
 
 function record_failed_attempt($ip) {
@@ -99,31 +108,35 @@ function record_failed_attempt($ip) {
     $data_file = 'rate_limit.json';
     
     $fp = fopen($lock_file, 'c');
-    flock($fp, LOCK_EX);
     
-    $data = file_exists($data_file) 
-        ? json_decode(file_get_contents($data_file), true) 
-        : [];
-    
-    if (!is_array($data)) {
-        $data = [];
+    try {
+        flock($fp, LOCK_EX);
+        
+        $data = file_exists($data_file) 
+            ? json_decode(file_get_contents($data_file), true) 
+            : [];
+        
+        if (!is_array($data)) {
+            $data = [];
+        }
+        
+        $ip_data = $data[$ip] ?? ['failed_attempts' => 0];
+        $ip_data['failed_attempts']++;
+        $ip_data['last_attempt_time'] = time();
+        
+        if ($ip_data['failed_attempts'] >= 3) {
+            $ip_data['locked_until'] = time() + (15 * 60);
+        }
+        
+        $data[$ip] = $ip_data;
+        file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
+        
+        return $ip_data;
+        
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
     }
-    
-    $ip_data = $data[$ip] ?? ['failed_attempts' => 0];
-    $ip_data['failed_attempts']++;
-    $ip_data['last_attempt_time'] = time();
-    
-    if ($ip_data['failed_attempts'] >= 3) {
-        $ip_data['locked_until'] = time() + (15 * 60);
-    }
-    
-    $data[$ip] = $ip_data;
-    file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
-    
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    
-    return $ip_data;
 }
 
 function reset_failed_attempts($ip) {
@@ -131,19 +144,23 @@ function reset_failed_attempts($ip) {
     $data_file = 'rate_limit.json';
     
     $fp = fopen($lock_file, 'c');
-    flock($fp, LOCK_EX);
     
-    $data = file_exists($data_file) 
-        ? json_decode(file_get_contents($data_file), true) 
-        : [];
-    
-    if (is_array($data) && isset($data[$ip])) {
-        unset($data[$ip]);
-        file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
+    try {
+        flock($fp, LOCK_EX);
+        
+        $data = file_exists($data_file) 
+            ? json_decode(file_get_contents($data_file), true) 
+            : [];
+        
+        if (is_array($data) && isset($data[$ip])) {
+            unset($data[$ip]);
+            file_put_contents($data_file, json_encode($data, JSON_PRETTY_PRINT));
+        }
+        
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
     }
-    
-    flock($fp, LOCK_UN);
-    fclose($fp);
 }
 
 function validate_password_strength($password) {
@@ -156,16 +173,18 @@ function validate_password_strength($password) {
     if (!preg_match('/[0-9]/', $password)) {
         return ['valid' => false, 'message' => '密码必须包含数字'];
     }
-    if (!preg_match('/[a-zA-Z]/', $password)) {
-        return ['valid' => false, 'message' => '密码必须包含字母'];
-    }
+    
+    // 可选：密码必须包含字母
+    // if (!preg_match('/[a-zA-Z]/', $password)) {
+    //     return ['valid' => false, 'message' => '密码必须包含字母'];
+    // }
+    
     return ['valid' => true];
 }
 
 function check_secret_authentication() {
     global $secret_session_lifetime, $library_id;
     
-    // 验证库 ID
     if (!isset($_SESSION['authenticated_library_id']) || $_SESSION['authenticated_library_id'] !== $library_id) {
         return false;
     }
@@ -234,20 +253,20 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
     
     $password = $request_data['password'] ?? '';
     
-    // 验证长度
     if (strlen($password) > 256) {
         echo json_encode(['success' => false, 'message' => '密码过长']);
         exit;
     }
     
-    // 检查初始密码 JSON 文件
     if (file_exists($initial_password_file)) {
         $initial_data = json_decode(file_get_contents($initial_password_file), true);
         
         if (isset($initial_data['is_initial']) && $initial_data['is_initial'] === true) {
             $initial_password = $initial_data['initial_password'] ?? '';
             
-            if ($password === $initial_password) {
+            if (hash_equals($initial_password, $password)) {
+                refresh_session_id();
+                
                 $_SESSION['secret_authenticated'] = true;
                 $_SESSION['secret_login_time'] = time();
                 $_SESSION['secret_last_activity'] = time();
@@ -267,12 +286,13 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
         }
     }
     
-    // 检查配置文件中的密码
     if (file_exists('secret_config.json')) {
         $config = json_decode(file_get_contents('secret_config.json'), true);
         
         // 尝试 Master Key
         if (isset($config['master_key_hash']) && password_verify($password, $config['master_key_hash'])) {
+            refresh_session_id();
+            
             $_SESSION['secret_authenticated'] = true;
             $_SESSION['secret_login_time'] = time();
             $_SESSION['secret_last_activity'] = time();
@@ -287,6 +307,8 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
         
         // 尝试 User Key
         if (isset($config['user_key_hash']) && password_verify($password, $config['user_key_hash'])) {
+            refresh_session_id();
+            
             $_SESSION['secret_authenticated'] = true;
             $_SESSION['secret_login_time'] = time();
             $_SESSION['secret_last_activity'] = time();
@@ -339,13 +361,11 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
     $master_key = $request_data['master_key'] ?? '';
     $user_key = $request_data['user_key'] ?? '';
     
-    // 验证长度
     if (strlen($master_key) > 256 || strlen($user_key) > 256) {
         echo json_encode(['success' => false, 'message' => '密码过长']);
         exit;
     }
     
-    // 验证复杂度
     $master_validation = validate_password_strength($master_key);
     if (!$master_validation['valid']) {
         echo json_encode(['success' => false, 'message' => '主密码: ' . $master_validation['message']]);
@@ -358,7 +378,6 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
         exit;
     }
     
-    // 验证两个密码不能相同
     if ($master_key === $user_key) {
         echo json_encode(['success' => false, 'message' => '主密码和用户密码不能相同']);
         exit;
@@ -410,25 +429,38 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
         exit;
     }
     
+    $ip = get_client_ip();
+    $rate_check = check_rate_limit($ip);
+    
+    if (!$rate_check['allowed']) {
+        if ($rate_check['reason'] === 'locked') {
+            $minutes = ceil($rate_check['remaining_seconds'] / 60);
+            echo json_encode([
+                'success' => false, 
+                'message' => "操作失败次数过多，请等待 {$minutes} 分钟后重试"
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'message' => '系统繁忙，请稍后重试']);
+        }
+        exit;
+    }
+    
     $current_master = $request_data['current_master'] ?? '';
     $change_master = $request_data['change_master'] ?? 'false';
     $change_user = $request_data['change_user'] ?? 'false';
     $new_master = $request_data['new_master'] ?? '';
     $new_user = $request_data['new_user'] ?? '';
     
-    // 验证长度
     if (strlen($current_master) > 256 || strlen($new_master) > 256 || strlen($new_user) > 256) {
         echo json_encode(['success' => false, 'message' => '密码过长']);
         exit;
     }
     
-    // 至少要修改一个
     if ($change_master !== 'true' && $change_user !== 'true') {
         echo json_encode(['success' => false, 'message' => '请至少选择修改一个密码']);
         exit;
     }
     
-    // 读取当前配置
     if (!file_exists('secret_config.json')) {
         echo json_encode(['success' => false, 'message' => '配置文件不存在']);
         exit;
@@ -438,7 +470,21 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
     
     // 验证当前 Master Key
     if (!isset($config['master_key_hash']) || !password_verify($current_master, $config['master_key_hash'])) {
-        echo json_encode(['success' => false, 'message' => '当前主密码错误']);
+        // 密码错误，记录失败尝试
+        $ip_data = record_failed_attempt($ip);
+        $remaining_attempts = 3 - $ip_data['failed_attempts'];
+        
+        if ($remaining_attempts > 0) {
+            echo json_encode([
+                'success' => false, 
+                'message' => "当前主密码错误，还可尝试 {$remaining_attempts} 次"
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false, 
+                'message' => '操作失败次数过多，已锁定15分钟'
+            ]);
+        }
         exit;
     }
     
@@ -496,6 +542,9 @@ if (isset($request_data['secret_action']) && $request_data['secret_action'] === 
     $config['updated_at'] = time();
     
     file_put_contents('secret_config.json', json_encode($config, JSON_PRETTY_PRINT));
+    
+    // 密码修改成功，重置失败计数
+    reset_failed_attempts($ip);
     
     echo json_encode(['success' => true, 'message' => '密码修改成功']);
     exit;
